@@ -2,68 +2,62 @@ import numpy as np
 from pysam import VariantFile
 from sklearn import decomposition
 import pandas as pd
-vcf_filename="ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf"
-panel_file= "phase1_integrated_calls.20101123.ALL.panel"
-def load_genomic_data(vcf_filename, panel_file, variant_sampling_rate=100):
-    genotypes = []
-    samples = []
-    variant_ids = []
 
-    with VariantFile(vcf_filename) as vcf_reader:
-        for counter, record in enumerate(vcf_reader, start=1):
-            if counter % variant_sampling_rate == 0:
-                alleles = [record.samples[x].allele_indices for x in record.samples]
-                samples = [sample for sample in record.samples]
-                genotypes.append(alleles)
-                variant_ids.append(record.id)
-            if counter >= variant_sampling_rate:
-                break
+def read_vcf(vcf_filename, max_records=100):
+   genotypes =[]
+   samples =[]
+   Variant_ids=[]
+   
+   with VariantFile (vcf_filename) as vcf_reader:
+      counter=0
+      for record in vcf_reader:
+          counter += 1
+          if counter % 100 ==0:
+           alleles =[record.samples[x].allele_indices for x in record.samples]
+           samples =[sample for sample in record.samples]
+           genotypes.append(alleles)
+           Variant_ids.append(record.id)
+          if counter >= 100:
+            break
+   return np.array(genotypes), samples, variant_ids  
 
-    with open(panel_file) as panel_file:
-         labels = {}  # {sample_id: population_code}
-         for line in panel_file:
-             line = line.strip().split('\t')
-             labels[line[0]] = line[1]       
-             
-    genotypes = np.array(genotypes)
-    print(genotypes.shape)
+def read_panel(panel_file):
+   with open(panel_file) as panel_file:
+    labels = {}  # {sample_id: population_code}
+    for line in panel_file:
+        line = line.strip().split('\t')
+        labels[line[0]] = line[1]       
+    return labels         
 
-def perform_pca(genotypes_matrix, n_components=1):
-    matrix = np.count_nonzero(genotypes_matrix, axis=2)
-    matrix = matrix.T
+def perform_pca(genotypes_matrix):
+   matrix = np.count_nonzero(genotypes,axis=2)
+   matrix = matrix.T
 
-    pca = decomposition.PCA(n_components=n_components)
-    pca.fit(matrix)
+   pca = decomposition.PCA(n_components=1)
+   pca.fit(matrix)
 
-    to_plot = pca.transform(matrix)
-    return matrix, to_plot, pca.singular_values_    
+   singular_values = pca.singular_values_
+   to_plot = pca.transform(matrix)
 
-def create_dataframe(matrix, samples, variant_ids, labels):
-    df = pd.DataFrame(matrix, columns=variant_ids, index=samples)
-    df['Population code'] = df.index.map(labels)
-    return df
+   return matrix, singular_values, to_plot
 
 
+def create_dataframe(matrix, variant_ids, samples, labels):
+   df = pd.DataFrame(matrix,columns=Variant_ids, index=samples)
+   df['Population code'] = df.index.map(labels)
+   return df
 
-def main():
-    vcf_filename = "ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf"
-    panel_file = "phase1_integrated_calls.20101123.ALL.panel"
-    
-    # Load genomic data
-    genotypes_matrix, samples, variant_ids, labels = load_genomic_data(vcf_filename, panel_file)
+def save_to_csv(df, output_filename="matrix.csv"):
+    df.to_csv(output_filename)
 
-    # Perform PCA analysis
-    matrix, to_plot, singular_values = perform_pca(genotypes_matrix)
+# Main part of the script
+vcf_filename = "ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf"
+panel_file = "phase1_integrated_calls.20101123.ALL.panel"
 
-    # Create DataFrame and export to CSV
-    df = create_dataframe(matrix, samples, variant_ids, labels)
-    df.to_csv("matrix.csv")
+genotypes_matrix, samples, variant_ids = read_vcf(vcf_filename)
+labels = read_panel(panel_file)
 
-    # Print PCA results
-    print("Original Genotype Matrix Shape:", genotypes_matrix.shape)
-    print("Transformed Matrix Shape:", matrix.shape)
-    print("PCA Singular Values:", singular_values)
-    print("Transformed Data Shape:", to_plot.shape)
+matrix, singular_values, to_plot = perform_pca(genotypes_matrix)
 
-if __name__ == "__main__":
-    main()
+df = create_dataframe(matrix, variant_ids, samples, labels)
+save_to_csv(df)
