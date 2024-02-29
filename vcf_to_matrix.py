@@ -11,16 +11,13 @@ Variant_ids=[]
 def read_vcf(vcf_filename):
  
    with VariantFile (vcf_filename) as vcf_reader:
-      counter=0
+      
       for record in vcf_reader:
-           counter += 1
-           if counter % 100 ==0:
+          
             alleles =[record.samples[x].allele_indices for x in record.samples]
             samples =[sample for sample in record.samples]
             genotypes.append(alleles)
             Variant_ids.append(record.id)
-           if counter >= 10000:
-              break
        
 
    return genotypes, samples, Variant_ids 
@@ -69,8 +66,8 @@ transformed_matrix= perform_pca(matrix)
 # Create DataFrase and save to CSV
 
 df = create_dataframe(matrix, Variant_ids, samples, labels)
-df.rename(columns={df.columns[0]: 'Sample'}, inplace=True)
-non_snp_colums = ['Population code', 'Sample']
-df.to_csv("matrix.csv")
 
- 
+df.to_csv("matrix.csv")
+plt.scatter(x=transformed_matrix[:, 0], y=transformed_matrix[:, 1])
+
+plt.show()
