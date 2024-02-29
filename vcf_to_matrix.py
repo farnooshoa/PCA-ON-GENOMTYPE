@@ -9,57 +9,68 @@ samples =[]
 Variant_ids=[]
    
 def read_vcf(vcf_filename):
-  
+ 
    with VariantFile (vcf_filename) as vcf_reader:
       counter=0
       for record in vcf_reader:
-          counter += 1
-          if counter % 100 ==0:
-           alleles =[record.samples[x].allele_indices for x in record.samples]
-           samples =[sample for sample in record.samples]
-           genotypes.append(alleles)
-           Variant_ids.append(record.id)
+           counter += 1
+           if counter % 100 ==0:
+            alleles =[record.samples[x].allele_indices for x in record.samples]
+            samples =[sample for sample in record.samples]
+            genotypes.append(alleles)
+            Variant_ids.append(record.id)
+           if counter >= 10000:
+              break
+       
 
-   return np.array(genotypes), samples, Variant_ids  
-
+   return genotypes, samples, Variant_ids 
+ 
 def read_panel(panel_file):
-   with open(panel_file) as panel_file:
+ 
+ with open(panel_file) as panel_file:
     labels = {}  # {sample_id: population_code}
     for line in panel_file:
-        line = line.strip().split('\t')
-        labels[line[0]] = line[1]       
-    return labels         
+     line = line.strip().split('\t')
+     labels[line[0]] = line[1]
+ return labels
 
-def perform_pca(genotypes_matrix):
-    matrix = np.count_nonzero(genotypes_matrix, axis=2).T
+def Matrix (genotypes):
+ 
+  genotypes= np.array(genotypes)
+  matrix = np.count_nonzero(genotypes, axis=2).T
 
-    pca = decomposition.PCA(n_components=2)
-    transformed_matrix = pca.fit_transform(matrix)
-    
+  return matrix
 
-    return transformed_matrix
+def perform_pca(matrix):
+  
+  pca = decomposition.PCA(n_components=2)
+  transformed_matrix = pca.fit_transform(matrix)
 
-
+  return transformed_matrix
+  
 def create_dataframe(matrix, Variant_ids, samples, labels):
-   df = pd.DataFrame(matrix,columns=Variant_ids, index=samples)
-   df['Population code'] = df.index.map(labels)
-   return df
+  
+  df = pd.DataFrame(matrix,columns=Variant_ids, index=samples)
+  df['Population code'] = df.index.map(labels)
 
-def save_to_csv(df, output_filename="matrix.csv"):
-    df.to_csv(output_filename)
+  return df
+
 
 
 # Main part of the script
-vcf_filename = "ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf"
+vcf_filename = "ALL.chr22.phase1_release_v3.20101123.snps_indels_svs.genotypes.vcf"
 panel_file = "phase1_integrated_calls.20101123.ALL.panel"
 
-genotypes_matrix, samples, variant_ids = read_vcf(vcf_filename)
+genotypes, samples, Variant_ids = read_vcf(vcf_filename)
 labels = read_panel(panel_file)
+matrix = Matrix (genotypes)
+transformed_matrix= perform_pca(matrix)
 
-transformed_matrix= perform_pca(genotypes_matrix)
+# Create DataFrase and save to CSV
 
-# Create DataFrame and save to CSV
-df = create_dataframe(transformed_matrix, variant_ids, samples, labels)
-save_to_csv(df)
+df = create_dataframe(matrix, Variant_ids, samples, labels)
+df.rename(columns={df.columns[0]: 'Sample'}, inplace=True)
+non_snp_colums = ['Population code', 'Sample']
+df.to_csv("matrix.csv")
 
-print(df[100])
+ 
